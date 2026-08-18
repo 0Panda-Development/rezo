@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Windows 10/11 x64 only. Build with VS 2022 + CMake. C++17 required.
+- Windows 10/11 x64 only. Build with VS + CMake. C++17 required (NOTE: CEF 151 forces C++20 via its own CMake flags — the tree compiles at C++20; keep whatever CEF's flags impose, do not fight it).
 - CEF distribution lives in-tree at `third_party/cef/` — **downloaded, never committed**.
 - Tor expert bundle lives at `tor/` (tor.exe, geoip, geoip6) — **downloaded, never committed**.
 - Every internet request must exit via Tor. **Never** fall back to direct internet.
