@@ -14,6 +14,15 @@ std::string RezoApp::UserAgent() const {
            " Safari/537.36";
 }
 
+// Privacy hardening switch set (task 5 verified):
+//   proxy-server                     socks5://127.0.0.1:9050  — Tor SOCKS5 proxy (tor.exe must run)
+//   proxy-bypass-list                <-loopback>              — only loopback bypasses the proxy
+//   host-resolver-rules              MAP * ~NOTFOUND + EXCLUDE localhost/127.0.0.1 — all DNS via proxy, no local leaks
+//   force-webrtc-ip-handling-policy  disable_non_proxied_udp  — WebRTC over SOCKS5 effectively off
+//   user-agent                       generic Windows Chrome   — no build/arch specifics beyond Win64
+//   block-third-party-cookies                                 — 3rd-party cookies blocked
+//   disable-breakpad / disable-component-update / disable-domain-reliability — no telemetry/updates
+//   disable-features=Translate,MediaRouter,OptimizationHints  — telemetry/network features off
 void RezoApp::OnBeforeCommandLineProcessing(const CefString& process_type,
                                             CefRefPtr<CefCommandLine> command_line) {
     command_line->AppendSwitchWithValue("proxy-server", "socks5://127.0.0.1:9050");
