@@ -13,3 +13,17 @@ network. Built with CEF (Chromium) in C++.
 
 The exe lands in `build\bin\Release\` (CEF may use `build\Release\` — check
 both). See the spec in `docs\superpowers\specs\` for the design.
+
+## Run
+
+Build, then copy the `tor\` folder and `src\resources\*` next to the exe
+(first run also works from `dist\Rezo\` after packaging):
+
+```powershell
+.\scripts\package.ps1
+dist\Rezo\Rezo.exe
+```
+
+First launch takes 30-90 s to connect to Tor. If Tor fails, every page shows
+the "TOR OFFLINE" screen; click Retry. No IP ever leaves your machine
+directly.
