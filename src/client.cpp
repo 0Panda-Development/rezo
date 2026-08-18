@@ -84,8 +84,10 @@ void RezoClient::OnAddressChange(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
 void RezoClient::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                              ErrorCode errorCode, const CefString& errorText,
                              const CefString& failedUrl) {
-    if (errorCode != ERR_ABORTED && !IsLocalUrl(failedUrl) && frame->IsMain()) {
-        // Proxy/Tor is down: show the blocked page instead of the error.
+    // Only Tor being down (kill switch active) redirects to the blocked page;
+    // cert/DNS errors are normal browsing errors and keep the native page.
+    if (errorCode != ERR_ABORTED && !IsLocalUrl(failedUrl) && frame->IsMain() &&
+        frame->IsValid() && shouldBlockRequest(g_tor.State())) {
         ShowBlockedPage(browser, frame);
     }
 }

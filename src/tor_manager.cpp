@@ -123,8 +123,15 @@ bool TorManager::StartBlocking() {
     }
     watchThread_ = CreateThread(nullptr, 0, RunWatchdog, this, 0, nullptr);
     bool ok = waitForPort("127.0.0.1", kTorPort, kStartTimeoutMs);
-    state_.store(ok ? TorState::Connected : TorState::Blocked);
-    if (!ok) lastError_ = "tor did not open SOCKS port 9050";
+    // Race: tor may exit between port success and this store (the watchdog
+    // would then store Blocked and exit). Check the handle before claiming
+    // Connected, or the state machine sticks on a dead daemon.
+    if (ok && WaitForSingleObject(process_.load(), 0) != WAIT_OBJECT_0) {
+        state_.store(TorState::Connected);
+    } else {
+        state_.store(TorState::Blocked);
+        if (!ok) lastError_ = "tor did not open SOCKS port 9050";
+    }
     return ok;
 }
 

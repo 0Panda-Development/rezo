@@ -6,7 +6,8 @@ $out = Join-Path $root "dist\Rezo"
 
 # Locate the built exe (CEF may use build\bin\Release or build\Release).
 $exe = Get-ChildItem -Path (Join-Path $build "bin\$Config"), (Join-Path $build $Config) `
-    -Filter "Rezo.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    -Filter "Rezo.exe" -Recurse -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $exe) { throw "Rezo.exe not found in build output" }
 
 Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
