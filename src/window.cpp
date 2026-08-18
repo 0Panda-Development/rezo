@@ -93,7 +93,6 @@ void Chrome::OnWindowCreated(CefRefPtr<CefWindow> window) {
     CefRefPtr<CefBrowserView> view = CefBrowserView::CreateBrowserView(
         new RezoClient(w), w->startUrl_, settings, nullptr, nullptr, nullptr);
 
-    root->AddChildView(tabBar);
     root->AddChildView(bar);
     root->AddChildView(view);
     root->GetLayout()->AsBoxLayout()->SetFlexForView(view, 1);
