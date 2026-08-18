@@ -9,13 +9,15 @@ class RezoClient : public CefClient,
                    public CefRequestHandler,
                    public CefLifeSpanHandler,
                    public CefLoadHandler,
-                   public CefResourceRequestHandler {
+                   public CefResourceRequestHandler,
+                   public CefDisplayHandler {
 public:
     explicit RezoClient(RezoWindow* window) : window_(window) {}
 
     CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
     CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
+    CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
 
     // CefRequestHandler
     bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
@@ -42,6 +44,11 @@ public:
                        CefRefPtr<CefDictionaryValue>& extra_info,
                        bool* no_javascript_access) override;
     bool DoClose(CefRefPtr<CefBrowser> browser) override;
+
+    // CefDisplayHandler (CEF 151 names: OnTitleChange/OnAddressChange)
+    void OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) override;
+    void OnAddressChange(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                         const CefString& url) override;
 
     // CefLoadHandler
     void OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,

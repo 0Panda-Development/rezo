@@ -3,6 +3,7 @@
 #include "app.h"
 #include "tor_manager.h"
 #include "tor_state.h"
+#include "window.h"
 
 extern TorManager g_tor;
 
@@ -68,7 +69,17 @@ bool RezoClient::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
 }
 
 bool RezoClient::DoClose(CefRefPtr<CefBrowser> browser) {
-    return false;  // default close; Task 6 handles per-tab close
+    window_->CloseTab(browser);
+    return true;
+}
+
+void RezoClient::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) {
+    window_->SetTabTitle(browser, title);
+}
+
+void RezoClient::OnAddressChange(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                                 const CefString& url) {
+    if (frame->IsMain()) window_->SetAddress(url.ToString());
 }
 
 void RezoClient::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
