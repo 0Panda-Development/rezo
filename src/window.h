@@ -56,7 +56,7 @@ public:
     void Create(const std::string& startUrl);
     void NavigateTo(const std::string& input);
     void OpenTab(const std::string& url);
-    void CloseTab(CefRefPtr<CefBrowser> browser);
+    bool CloseTab(CefRefPtr<CefBrowser> browser);
     void SelectTab(int index);
     void SetTabTitle(CefRefPtr<CefBrowser> browser, const CefString& title);
     void SetAddress(const std::string& url);

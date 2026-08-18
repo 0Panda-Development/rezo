@@ -207,13 +207,13 @@ void RezoWindow::OpenTab(const std::string& url) {
     SelectTab(static_cast<int>(tabs_.size()) - 1);
 }
 
-void RezoWindow::CloseTab(CefRefPtr<CefBrowser> browser) {
+bool RezoWindow::CloseTab(CefRefPtr<CefBrowser> browser) {
     int idx = TabIndex(browser);
-    if (idx < 0) return;
+    if (idx < 0) return false;
     if (tabs_.size() <= 1) {
         // Last tab: close the window.
         if (window_) window_->Close();
-        return;
+        return true;
     }
     CefRefPtr<CefBrowserView> view = tabs_[idx].view;
     tabs_.erase(tabs_.begin() + idx);
@@ -221,6 +221,7 @@ void RezoWindow::CloseTab(CefRefPtr<CefBrowser> browser) {
     view->GetBrowser()->GetHost()->CloseBrowser(true);
     SelectTab(std::min(selected_, static_cast<int>(tabs_.size()) - 1));
     RebuildTabButtons();
+    return true;
 }
 
 void RezoWindow::NavigateTo(const std::string& input) {

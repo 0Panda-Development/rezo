@@ -69,8 +69,7 @@ bool RezoClient::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
 }
 
 bool RezoClient::DoClose(CefRefPtr<CefBrowser> browser) {
-    window_->CloseTab(browser);
-    return true;
+    return window_->CloseTab(browser);
 }
 
 void RezoClient::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) {
