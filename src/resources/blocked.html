@@ -4,31 +4,58 @@
 <meta charset="utf-8">
 <title>Tor Offline</title>
 <style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    margin: 0; min-height: 100vh;
-    background: #0b0b12;
+    overflow: hidden;
+    background: #0b0b14;
     color: #e8e8f0;
     font-family: 'Segoe UI', sans-serif;
     text-align: center;
-    padding-top: 120px;
-    background-image:
-      radial-gradient(60% 50% at 20% 0%, rgba(248, 113, 113, 0.14), transparent 60%),
-      radial-gradient(50% 40% at 80% 10%, rgba(255, 0, 128, 0.08), transparent 60%);
+    padding-top: 110px;
   }
+  #aurora, #particles { position: fixed; inset: 0; pointer-events: none; }
+  .blob {
+    position: absolute; border-radius: 50%;
+    mix-blend-mode: screen; opacity: 0.5;
+  }
+  #blob1 {
+    width: 60vmax; height: 60vmax; left: -20vmax; top: -25vmax;
+    background: radial-gradient(circle, rgba(248, 113, 113, 0.45), transparent 65%);
+    animation: drift1 26s ease-in-out infinite alternate;
+  }
+  #blob2 {
+    width: 55vmax; height: 55vmax; right: -22vmax; top: 5vmax;
+    background: radial-gradient(circle, rgba(255, 45, 146, 0.35), transparent 65%);
+    animation: drift2 32s ease-in-out infinite alternate;
+  }
+  #blob3 {
+    width: 50vmax; height: 50vmax; left: 15vmax; bottom: -30vmax;
+    background: radial-gradient(circle, rgba(124, 92, 255, 0.3), transparent 65%);
+    animation: drift3 38s ease-in-out infinite alternate;
+  }
+  @keyframes drift1 { to { transform: translate(18vmax, 12vmax) scale(1.15); } }
+  @keyframes drift2 { to { transform: translate(-16vmax, -10vmax) scale(1.2); } }
+  @keyframes drift3 { to { transform: translate(-10vmax, -14vmax) scale(1.1); } }
+  .content { position: relative; z-index: 1; }
   h1 {
     margin: 0; font-size: 40px; letter-spacing: 6px; color: #ff5c5c;
     text-shadow: 0 0 22px rgba(255, 92, 92, 0.55);
   }
   p { color: #8a8a9a; margin-top: 20px; }
   .status {
+    position: relative; z-index: 1;
     display: inline-block; margin-top: 34px; padding: 8px 18px;
     border-radius: 999px; font-size: 13px; font-weight: 600;
-    background: rgba(255, 255, 255, 0.03); border: 1px solid #26263a;
+    background: rgba(255, 255, 255, 0.04); border: 1px solid #26263a;
+    backdrop-filter: blur(4px);
   }
   .status::before {
     content: ""; display: inline-block; width: 8px; height: 8px;
     border-radius: 50%; background: currentColor; margin-right: 8px;
+    animation: dot 2s ease-in-out infinite;
   }
+  @keyframes dot { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
   .status.connected    { color: #4ade80; border-color: rgba(74, 222, 128, 0.5);
                          animation: pulse 2.4s ease-in-out infinite; }
   .status.starting     { color: #fbbf24; border-color: rgba(251, 191, 36, 0.5);
@@ -40,6 +67,7 @@
     50%      { box-shadow: 0 0 18px color-mix(in srgb, currentColor 60%, transparent); }
   }
   a {
+    position: relative; z-index: 1;
     display: inline-block; margin-top: 34px; padding: 12px 28px;
     background: #7c5cff; color: #fff;
     border-radius: 8px; text-decoration: none; font-weight: 600;
@@ -54,10 +82,55 @@
 </style>
 </head>
 <body>
-<h1>TOR OFFLINE</h1>
-<p>Rezo cannot load this page: the Tor connection is down.</p>
-<p>Your IP was never exposed.</p>
-<p class="status {{STATUSCLASS}}">{{STATUS}}</p>
-<a href="rezo://newtab/retry">Retry</a>
+<div id="aurora">
+  <div class="blob" id="blob1"></div>
+  <div class="blob" id="blob2"></div>
+  <div class="blob" id="blob3"></div>
+</div>
+<canvas id="particles"></canvas>
+<div class="content">
+  <h1>TOR OFFLINE</h1>
+  <p>Rezo cannot load this page: the Tor connection is down.</p>
+  <p>Your IP was never exposed.</p>
+  <p class="status {{STATUSCLASS}}">{{STATUS}}</p>
+  <a href="rezo://newtab/retry">Retry</a>
+</div>
+<script>
+  var cv = document.getElementById('particles');
+  var ctx = cv.getContext('2d');
+  var W = 0, H = 0;
+  function resize() { W = cv.width = window.innerWidth; H = cv.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+  var colors = ['248,113,113', '255,45,146', '124,92,255', '255,255,255'];
+  var ps = [];
+  for (var i = 0; i < 35; i++) {
+    ps.push({
+      x: Math.random() * W, y: Math.random() * H,
+      r: Math.random() * 1.8 + 0.6,
+      vx: (Math.random() - 0.5) * 0.35,
+      vy: (Math.random() - 0.5) * 0.35 - 0.12,
+      c: colors[i % colors.length],
+      tw: Math.random() * Math.PI * 2
+    });
+  }
+  function tick() {
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < ps.length; i++) {
+      var p = ps[i];
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0 || p.x > W) p.vx *= -1;
+      if (p.y < 0 || p.y > H) p.vy *= -1;
+      p.tw += 0.05;
+      var a = 0.35 + 0.35 * Math.sin(p.tw);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + p.c + ',' + a + ')';
+      ctx.fill();
+    }
+    requestAnimationFrame(tick);
+  }
+  tick();
+</script>
 </body>
 </html>

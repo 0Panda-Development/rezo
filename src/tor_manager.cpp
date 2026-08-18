@@ -124,6 +124,10 @@ bool TorManager::StartBlocking() {
     Cleanup();
     state_.store(TorState::Starting);
     lastError_.clear();
+    // Monitor runs in every path (spawn and adoption): with an adopted
+    // daemon there is no process handle, so periodic probing is the only way
+    // to notice it dying.
+    watchThread_ = CreateThread(nullptr, 0, RunWatchdog, this, 0, nullptr);
     // A daemon left over from a hard-killed session (same data dir, same
     // port) may already be serving — adopt it instead of spawning a second
     // tor that dies on the data-dir lock. The lock file fingerprints a daemon
@@ -138,7 +142,6 @@ bool TorManager::StartBlocking() {
         state_.store(TorState::Blocked);
         return false;
     }
-    watchThread_ = CreateThread(nullptr, 0, RunWatchdog, this, 0, nullptr);
     // Wait for a real circuit, not just the port: first page load pays the
     // circuit build anyway, so front-load it into startup.
     bool ok = waitForSocks("127.0.0.1", kTorPort, kProbeHost, kProbePort, kStartTimeoutMs);
@@ -180,15 +183,36 @@ void TorManager::Stop() {
 DWORD WINAPI TorManager::RunWatchdog(LPVOID param) {
     TorManager* self = reinterpret_cast<TorManager*>(param);
     HANDLE proc = self->process_.load();
+    int ticks = 0;
     while (!self->stopFlag_.load()) {
-        DWORD rc = WaitForSingleObject(proc, 1000);
-        if (rc == WAIT_OBJECT_0) {
-            TorState s = self->state_.load();
-            if (s == TorState::Connected || s == TorState::Starting) {
-                self->state_.store(TorState::Blocked);
-                self->lastError_ = "tor process exited";
+        if (proc) {
+            DWORD rc = WaitForSingleObject(proc, 1000);
+            if (rc == WAIT_OBJECT_0) {
+                TorState s = self->state_.load();
+                if (s == TorState::Connected || s == TorState::Starting) {
+                    self->state_.store(TorState::Blocked);
+                    self->lastError_ = "tor process exited";
+                }
+                break;
             }
-            break;
+        } else {
+            Sleep(1000);
+        }
+        // Every ~5s, re-probe the proxy: catches an adopted daemon dying (no
+        // process handle to wait on) and recovers Connected when Tor returns.
+        if (++ticks % 5 == 0 && !self->stopFlag_.load()) {
+            TorState s = self->state_.load();
+            if (s == TorState::Connected) {
+                if (!tryConnect("127.0.0.1", kTorPort)) {
+                    self->state_.store(TorState::Blocked);
+                    self->lastError_ = "tor unreachable";
+                }
+            } else if (s == TorState::Blocked) {
+                if (socksReady("127.0.0.1", kTorPort, kProbeHost, kProbePort)) {
+                    self->state_.store(TorState::Connected);
+                    self->lastError_.clear();
+                }
+            }
         }
     }
     return 0;
