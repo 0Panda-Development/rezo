@@ -6,7 +6,7 @@
 #include <chrono>
 #include <thread>
 
-static bool tryConnect(const char* host, unsigned short port) {
+bool tryConnect(const char* host, unsigned short port) {
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return false;
 

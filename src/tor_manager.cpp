@@ -9,7 +9,10 @@
 namespace {
 
 constexpr int kTorPort = 9050;
-constexpr int kStartTimeoutMs = 90000;
+// First bootstrap downloads the microdesc consensus; on slow networks that
+// can take minutes, so a hard fail must be generous. Later starts use the
+// cache and are fast.
+constexpr int kStartTimeoutMs = 900000;
 
 std::string Utf8(const std::wstring& w) {
     if (w.empty()) return {};
@@ -117,22 +120,32 @@ bool TorManager::StartBlocking() {
     Cleanup();
     state_.store(TorState::Starting);
     lastError_.clear();
+    // A daemon left over from a hard-killed session (same data dir, same
+    // port) may already be serving — adopt it instead of spawning a second
+    // tor that dies on the data-dir lock. The lock file fingerprints a daemon
+    // running our config; a foreign SOCKS on 9050 is not adopted.
+    if (tryConnect("127.0.0.1", kTorPort) && std::filesystem::exists(dataDir_ + "\\lock")) {
+        state_.store(TorState::Connected);
+        return true;
+    }
     if (!SpawnTor()) {
         state_.store(TorState::Blocked);
         return false;
     }
     watchThread_ = CreateThread(nullptr, 0, RunWatchdog, this, 0, nullptr);
     bool ok = waitForPort("127.0.0.1", kTorPort, kStartTimeoutMs);
-    // Race: tor may exit between port success and this store (the watchdog
-    // would then store Blocked and exit). Check the handle before claiming
-    // Connected, or the state machine sticks on a dead daemon.
-    if (ok && WaitForSingleObject(process_.load(), 0) != WAIT_OBJECT_0) {
-        state_.store(TorState::Connected);
-    } else {
-        state_.store(TorState::Blocked);
-        if (!ok) lastError_ = "tor did not open SOCKS port 9050";
+    // ok can be stale: our spawn may have died right after opening the port,
+    // or lost the data-dir lock to a slow stale daemon that only now started
+    // listening. Probe before claiming Connected.
+    bool up = ok && tryConnect("127.0.0.1", kTorPort);
+    state_.store(up ? TorState::Connected : TorState::Blocked);
+    if (!up) {
+        // If our spawn already exited, the watchdog wrote the accurate reason.
+        HANDLE proc = process_.load();
+        if (!proc || WaitForSingleObject(proc, 0) != WAIT_OBJECT_0)
+            lastError_ = "tor did not open SOCKS port 9050";
     }
-    return ok;
+    return up;
 }
 
 void TorManager::StartAsync() {
