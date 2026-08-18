@@ -4,6 +4,7 @@
 #include "include/cef_task.h"
 #include "include/views/cef_box_layout.h"
 #include "include/views/cef_browser_view.h"
+#include "include/views/cef_browser_view_delegate.h"
 #include "include/views/cef_button.h"
 #include "include/views/cef_label_button.h"
 #include "include/views/cef_panel.h"
@@ -55,6 +56,28 @@ public:
     IMPLEMENT_REFCOUNTING(RebuildTabs);
 private:
     RezoWindow* owner_;
+};
+
+class TabViewDelegate : public CefBrowserViewDelegate {
+public:
+    TabViewDelegate(RezoWindow* owner, const std::string& url) : owner_(owner), url_(url) {}
+    void OnBrowserCreated(CefRefPtr<CefBrowserView> view, CefRefPtr<CefBrowser> browser) override;
+    IMPLEMENT_REFCOUNTING(TabViewDelegate);
+private:
+    RezoWindow* owner_;
+    std::string url_;
+};
+
+class AssertTabUrl : public CefTask {
+public:
+    AssertTabUrl(RezoWindow* owner, CefRefPtr<CefBrowser> browser, const std::string& url)
+        : owner_(owner), browser_(browser), url_(url) {}
+    void Execute() override;
+    IMPLEMENT_REFCOUNTING(AssertTabUrl);
+private:
+    RezoWindow* owner_;
+    CefRefPtr<CefBrowser> browser_;
+    std::string url_;
 };
 
 class RezoWindow {

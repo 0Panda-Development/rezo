@@ -57,7 +57,6 @@ void Chrome::OnWindowCreated(CefRefPtr<CefWindow> window) {
     w->tabBar_ = tabBar;
     w->plus_ = CefLabelButton::CreateLabelButton(this, "+");
     w->plus_->SetID(ID_NEWTAB);
-    tabBar->AddChildView(w->plus_);
 
     // Top bar: back / forward / reload / address / status
     CefRefPtr<CefPanel> bar = CefPanel::CreatePanel(nullptr);
@@ -141,6 +140,22 @@ void RebuildTabs::Execute() {
     owner_->RebuildTabButtons();
 }
 
+void TabViewDelegate::OnBrowserCreated(CefRefPtr<CefBrowserView> view,
+                                      CefRefPtr<CefBrowser> browser) {
+    browser->GetMainFrame()->LoadURL(url_);
+    owner_->SetAddress(url_);
+    CefPostDelayedTask(TID_UI, new AssertTabUrl(owner_, browser, url_), 1000);
+}
+
+void AssertTabUrl::Execute() {
+    if (owner_->IsClosing()) return;
+    CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+    if (frame && frame->GetURL().ToString() != url_) {
+        frame->LoadURL(url_);
+        owner_->SetAddress(url_);
+    }
+}
+
 void RezoWindow::Create(const std::string& startUrl) {
     startUrl_ = startUrl;
     CefWindow::CreateTopLevelWindow(chrome_);
@@ -205,7 +220,8 @@ void RezoWindow::RebuildTabButtons() {
 void RezoWindow::OpenTab(const std::string& url) {
     std::string target = url.empty() ? "rezo://newtab/" : url;
     CefRefPtr<CefBrowserView> view = CefBrowserView::CreateBrowserView(
-        new RezoClient(this), target, CefBrowserSettings(), nullptr, nullptr, nullptr);
+        new RezoClient(this), "about:blank", CefBrowserSettings(), nullptr, nullptr,
+        new TabViewDelegate(this, target));
     root_->AddChildView(view);
     root_->GetLayout()->AsBoxLayout()->SetFlexForView(view, 1);
     tabs_.push_back({view, nullptr});
