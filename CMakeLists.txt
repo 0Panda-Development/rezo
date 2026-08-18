@@ -25,5 +25,7 @@ COPY_FILES("rezo" "${CEF_BINARY_FILES}" "${CEF_BINARY_DIR}" "${CEF_TARGET_OUT_DI
 COPY_FILES("rezo" "${CEF_RESOURCE_FILES}" "${CEF_RESOURCE_DIR}" "${CEF_TARGET_OUT_DIR}")
 
 enable_testing()
-add_executable(rezo_tests tests/test_main.cpp)
+add_executable(rezo_tests tests/test_main.cpp src/tor_manager.cpp src/netutil.cpp)
+target_include_directories(rezo_tests PRIVATE src)
+target_link_libraries(rezo_tests PRIVATE ws2_32)
 add_test(NAME rezo_tests COMMAND rezo_tests)
