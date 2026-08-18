@@ -219,10 +219,7 @@ DWORD WINAPI TorManager::RunWatchdog(LPVOID param) {
                 self->state_.store(TorState::Blocked);
                 self->lastError_ = "tor process exited";
             } else if (s == TorState::Connected) {
-                // Full circuit probe, not a bare connect: "something listens
-                // on 9050" (a foreign SOCKS, a dead-socket leftover) must not
-                // count as Tor being up.
-                if (!socksReady("127.0.0.1", kTorPort, kProbeHost, kProbePort)) {
+                if (!tryConnect("127.0.0.1", kTorPort)) {
                     self->state_.store(TorState::Blocked);
                     self->lastError_ = "tor unreachable";
                 }

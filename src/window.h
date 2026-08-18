@@ -48,6 +48,15 @@ private:
     RezoWindow* owner_;
 };
 
+class RebuildTabs : public CefTask {
+public:
+    explicit RebuildTabs(RezoWindow* owner) : owner_(owner) {}
+    void Execute() override;
+    IMPLEMENT_REFCOUNTING(RebuildTabs);
+private:
+    RezoWindow* owner_;
+};
+
 class RezoWindow {
 public:
     RezoWindow();
@@ -61,6 +70,7 @@ public:
     void SetTabTitle(CefRefPtr<CefBrowser> browser, const CefString& title);
     void SetAddress(const std::string& url);
     void UpdateTorStatus();
+    void RebuildTabButtons();
     bool IsClosing() const { return closing_; }
     void DestroyWindow();
     CefRefPtr<CefBrowser> ActiveBrowser() const;
@@ -72,7 +82,6 @@ private:
         CefRefPtr<CefLabelButton> button;
     };
     int TabIndex(CefRefPtr<CefBrowser> browser) const;
-    void RebuildTabButtons();
 
     CefRefPtr<CefWindow> window_;
     CefRefPtr<CefPanel> root_;

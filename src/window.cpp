@@ -136,6 +136,11 @@ void StatusTicker::Execute() {
     CefPostDelayedTask(TID_UI, this, 1000);
 }
 
+void RebuildTabs::Execute() {
+    if (owner_->IsClosing()) return;
+    owner_->RebuildTabButtons();
+}
+
 void RezoWindow::Create(const std::string& startUrl) {
     startUrl_ = startUrl;
     CefWindow::CreateTopLevelWindow(chrome_);
@@ -167,7 +172,7 @@ void RezoWindow::SelectTab(int index) {
     for (size_t i = 0; i < tabs_.size(); ++i) {
         tabs_[i].view->SetVisible(i == static_cast<size_t>(index));
     }
-    RebuildTabButtons();
+    CefPostTask(TID_UI, new RebuildTabs(this));
     CefRefPtr<CefBrowser> b = ActiveBrowser();
     if (b) SetAddress(b->GetMainFrame()->GetURL().ToString());
 }
