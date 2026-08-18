@@ -44,6 +44,21 @@ std::string EscapeHtml(const std::string& s) {
     return out;
 }
 
+std::string EnsureConfig(const std::string& cfgPath) {
+    if (std::filesystem::exists(cfgPath)) return cfgPath;
+    std::ofstream f(cfgPath);
+    if (f) {
+        f << "# Rezo quick access tiles\n"
+          << "# One tile per line: Name<TAB>URL\n\n"
+          << "Steam\thttps://store.steampowered.com\n"
+          << "Discord\thttps://discord.com/app\n"
+          << "Roblox\thttps://www.roblox.com\n"
+          << "Reddit\thttps://www.reddit.com\n"
+          << "YouTube\thttps://www.youtube.com\n";
+    }
+    return cfgPath;
+}
+
 std::string BuildTiles(const std::string& cfgPath) {
     std::ifstream f(cfgPath);
     std::string out;
@@ -101,13 +116,20 @@ private:
         std::string dir = ResourceDir();
         std::string status = torStateName(g_tor.State());
         std::string statusText = std::string("Tor: ") + status;
+        if (url.find("retry") != std::string::npos) {
+            g_tor.StartAsync();
+            return "<html><body style='background:#0f0f14;color:#e8e8f0;font-family:sans-serif;text-align:center;padding-top:120px'>"
+                   "<h1>TOR STARTING</h1>"
+                   "<p>Waiting for the Tor circuit...</p>"
+                   "<a href='rezo://newtab/' style='color:#7c5cff'>Back</a></body></html>";
+        }
         if (url.find("blocked") != std::string::npos) {
             std::string html = ReadFile(dir + "\\blocked.html");
             // {{STATUS}} placeholder is fine to leave if absent.
             return ReplaceAll(html, "{{STATUS}}", statusText);
         }
         std::string html = ReadFile(dir + "\\newtab.html");
-        html = ReplaceAll(html, "{{TILES}}", BuildTiles(dir + "\\quickaccess.txt"));
+        html = ReplaceAll(html, "{{TILES}}", BuildTiles(EnsureConfig(dir + "\\quickaccess.txt")));
         html = ReplaceAll(html, "{{STATUS}}", statusText);
         return html;
     }
