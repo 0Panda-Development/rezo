@@ -78,7 +78,9 @@ bool TorManager::WriteTorrc() {
         return false;
     }
     f << "SocksPort 9050\n"
-      << "DataDirectory \"" << fs(dataDir_) << "\"\n";
+      << "DataDirectory \"" << fs(dataDir_) << "\"\n"
+      // This VM's disk is slow; keep tor's state in RAM.
+      << "AvoidDiskWrites 1\n";
     if (std::filesystem::exists(torDir_ + "\\geoip"))
         f << "GeoIPFile \"" << fs(torDir_) << "/geoip\"\n";
     return true;
@@ -113,9 +115,13 @@ void TorManager::Cleanup() {
         watchThread_ = nullptr;
     }
     if (startThread_) {
-        WaitForSingleObject(startThread_, 3000);
-        CloseHandle(startThread_);
-        startThread_ = nullptr;
+        // Skip the join when called from the start thread itself: waiting on
+        // your own thread handle stalls the full timeout every start/retry.
+        if (GetCurrentThreadId() != startThreadId_) {
+            WaitForSingleObject(startThread_, 3000);
+            CloseHandle(startThread_);
+            startThread_ = nullptr;
+        }
     }
     stopFlag_.store(false);
 }
@@ -168,6 +174,7 @@ void TorManager::StartAsync() {
         startThread_ = nullptr;
     }
     startThread_ = CreateThread(nullptr, 0, RunStart, this, 0, nullptr);
+    startThreadId_ = GetThreadId(startThread_);
 }
 
 DWORD WINAPI TorManager::RunStart(LPVOID param) {
@@ -182,9 +189,12 @@ void TorManager::Stop() {
 
 DWORD WINAPI TorManager::RunWatchdog(LPVOID param) {
     TorManager* self = reinterpret_cast<TorManager*>(param);
-    HANDLE proc = self->process_.load();
     int ticks = 0;
     while (!self->stopFlag_.load()) {
+        // Reload each iteration: the thread starts before SpawnTor stores the
+        // handle, so loading once could miss it and leave the process-exit
+        // kill switch permanently disengaged.
+        HANDLE proc = self->process_.load();
         if (proc) {
             DWORD rc = WaitForSingleObject(proc, 1000);
             if (rc == WAIT_OBJECT_0) {
@@ -202,8 +212,17 @@ DWORD WINAPI TorManager::RunWatchdog(LPVOID param) {
         // process handle to wait on) and recovers Connected when Tor returns.
         if (++ticks % 5 == 0 && !self->stopFlag_.load()) {
             TorState s = self->state_.load();
-            if (s == TorState::Connected) {
-                if (!tryConnect("127.0.0.1", kTorPort)) {
+            if (s == TorState::Starting && proc &&
+                WaitForSingleObject(proc, 0) == WAIT_OBJECT_0) {
+                // Spawn died during bootstrap: don't make the UI wait out the
+                // full start timeout before showing Blocked.
+                self->state_.store(TorState::Blocked);
+                self->lastError_ = "tor process exited";
+            } else if (s == TorState::Connected) {
+                // Full circuit probe, not a bare connect: "something listens
+                // on 9050" (a foreign SOCKS, a dead-socket leftover) must not
+                // count as Tor being up.
+                if (!socksReady("127.0.0.1", kTorPort, kProbeHost, kProbePort)) {
                     self->state_.store(TorState::Blocked);
                     self->lastError_ = "tor unreachable";
                 }

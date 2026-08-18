@@ -36,6 +36,7 @@ void RezoApp::OnBeforeCommandLineProcessing(const CefString& process_type,
     command_line->AppendSwitch("disable-breakpad");
     command_line->AppendSwitch("disable-component-update");
     command_line->AppendSwitch("disable-domain-reliability");
+    command_line->AppendSwitch("disable-background-networking");
     command_line->AppendSwitch("disable-features=Translate,MediaRouter,OptimizationHints");
 }
 
