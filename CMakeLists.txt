@@ -17,7 +17,9 @@ add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper)
 SET_CEF_TARGET_OUT_DIR()
 ADD_LOGICAL_TARGET(libcef_lib "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
 
-add_executable(rezo src/main.cpp)
+add_executable(rezo src/main.cpp src/app.cpp src/client.cpp src/window.cpp src/newtab.cpp
+               src/tor_manager.cpp src/netutil.cpp)
+target_include_directories(rezo PRIVATE src)
 SET_EXECUTABLE_TARGET_PROPERTIES(rezo)
 add_dependencies(rezo libcef_dll_wrapper)
 target_link_libraries(rezo libcef_lib libcef_dll_wrapper ${CEF_STANDARD_LIBS})

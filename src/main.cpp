@@ -1,28 +1,16 @@
 #include "include/cef_app.h"
-#include "include/cef_base.h"
 
-class RezoApp : public CefApp, public CefBrowserProcessHandler {
-public:
-    CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
+#include "app.h"
+#include "tor_manager.h"
 
-    void OnContextInitialized() override {
-        CefBrowserHost::CreateBrowserSync(
-            CefWindowInfo(), new DummyClient(), "data:text/html,<h1 style='font-family:sans-serif'>Rezo</h1>",
-            CefBrowserSettings(), nullptr, nullptr);
-    }
-    IMPLEMENT_REFCOUNTING(RezoApp);
-
-private:
-    class DummyClient : public CefClient {
-    public:
-        IMPLEMENT_REFCOUNTING(DummyClient);
-    };
-};
+TorManager g_tor;
+RezoApp* g_app = nullptr;
 
 int main(int argc, char* argv[]) {
     // CEF 151 removed CefMainArgs(int, char**); Windows uses HINSTANCE.
     CefMainArgs args(GetModuleHandle(nullptr));
     CefRefPtr<RezoApp> app(new RezoApp);
+    g_app = app.get();
     int code = CefExecuteProcess(args, app.get(), nullptr);
     if (code >= 0) return code;
 
@@ -31,7 +19,10 @@ int main(int argc, char* argv[]) {
     settings.log_severity = LOGSEVERITY_WARNING;
     if (!CefInitialize(args, settings, app.get(), nullptr)) return 1;
 
+    g_tor.StartAsync();  // spawn tor in the background; UI shows Starting
     CefRunMessageLoop();
+
+    g_tor.Stop();
     CefShutdown();
     return 0;
 }
