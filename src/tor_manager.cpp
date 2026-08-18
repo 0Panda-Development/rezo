@@ -13,6 +13,10 @@ constexpr int kTorPort = 9050;
 // can take minutes, so a hard fail must be generous. Later starts use the
 // cache and are fast.
 constexpr int kStartTimeoutMs = 900000;
+// Target used to prove the proxy is genuinely usable (a full SOCKS5 CONNECT,
+// which forces a circuit) rather than merely accepting connections.
+constexpr const char* kProbeHost = "check.torproject.org";
+constexpr unsigned short kProbePort = 80;
 
 std::string Utf8(const std::wstring& w) {
     if (w.empty()) return {};
@@ -123,8 +127,10 @@ bool TorManager::StartBlocking() {
     // A daemon left over from a hard-killed session (same data dir, same
     // port) may already be serving — adopt it instead of spawning a second
     // tor that dies on the data-dir lock. The lock file fingerprints a daemon
-    // running our config; a foreign SOCKS on 9050 is not adopted.
-    if (tryConnect("127.0.0.1", kTorPort) && std::filesystem::exists(dataDir_ + "\\lock")) {
+    // running our config; a foreign SOCKS on 9050 is not adopted. Readiness
+    // (circuit to the probe host) is required, not just a listening port.
+    if (socksReady("127.0.0.1", kTorPort, kProbeHost, kProbePort) &&
+        std::filesystem::exists(dataDir_ + "\\lock")) {
         state_.store(TorState::Connected);
         return true;
     }
@@ -133,17 +139,19 @@ bool TorManager::StartBlocking() {
         return false;
     }
     watchThread_ = CreateThread(nullptr, 0, RunWatchdog, this, 0, nullptr);
-    bool ok = waitForPort("127.0.0.1", kTorPort, kStartTimeoutMs);
-    // ok can be stale: our spawn may have died right after opening the port,
-    // or lost the data-dir lock to a slow stale daemon that only now started
-    // listening. Probe before claiming Connected.
-    bool up = ok && tryConnect("127.0.0.1", kTorPort);
+    // Wait for a real circuit, not just the port: first page load pays the
+    // circuit build anyway, so front-load it into startup.
+    bool ok = waitForSocks("127.0.0.1", kTorPort, kProbeHost, kProbePort, kStartTimeoutMs);
+    // ok can be stale: our spawn may have died right after the probe, or lost
+    // the data-dir lock to a slow stale daemon that only now became usable.
+    // Probe before claiming Connected.
+    bool up = ok && socksReady("127.0.0.1", kTorPort, kProbeHost, kProbePort);
     state_.store(up ? TorState::Connected : TorState::Blocked);
     if (!up) {
         // If our spawn already exited, the watchdog wrote the accurate reason.
         HANDLE proc = process_.load();
         if (!proc || WaitForSingleObject(proc, 0) != WAIT_OBJECT_0)
-            lastError_ = "tor did not open SOCKS port 9050";
+            lastError_ = "tor SOCKS proxy not ready";
     }
     return up;
 }
