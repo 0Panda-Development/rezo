@@ -186,8 +186,8 @@ void RezoWindow::RebuildTabButtons() {
         std::string label = "New Tab";
         CefRefPtr<CefBrowser> b = tabs_[i].view->GetBrowser();
         if (b) {
-            label = TrimTitle(b->GetMainFrame()->GetURL().ToString());
-            if (label.empty()) label = "New Tab";
+            std::string u = b->GetMainFrame()->GetURL().ToString();
+            if (u.rfind("rezo://", 0) != 0 && !u.empty()) label = TrimTitle(u);
         }
         if (static_cast<int>(i) == selected_) label = "● " + label;
         CefRefPtr<CefLabelButton> b2 = CefLabelButton::CreateLabelButton(chrome_, label);
@@ -217,8 +217,8 @@ bool RezoWindow::CloseTab(CefRefPtr<CefBrowser> browser) {
     }
     CefRefPtr<CefBrowserView> view = tabs_[idx].view;
     tabs_.erase(tabs_.begin() + idx);
-    root_->RemoveChildView(view);
     view->GetBrowser()->GetHost()->CloseBrowser(true);
+    root_->RemoveChildView(view);
     SelectTab(std::min(selected_, static_cast<int>(tabs_.size()) - 1));
     RebuildTabButtons();
     return true;
@@ -241,7 +241,12 @@ void RezoWindow::NavigateTo(const std::string& input) {
 void RezoWindow::SetTabTitle(CefRefPtr<CefBrowser> browser, const CefString& title) {
     int idx = TabIndex(browser);
     if (idx < 0) return;
-    if (tabs_[idx].button) tabs_[idx].button->SetText(TrimTitle(title.ToString()));
+    if (tabs_[idx].button) {
+        std::string t = TrimTitle(title.ToString());
+        if (t.empty()) t = "New Tab";
+        if (idx == selected_) t = "● " + t;
+        tabs_[idx].button->SetText(t);
+    }
 }
 
 void RezoWindow::SetAddress(const std::string& url) {

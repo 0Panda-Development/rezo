@@ -78,7 +78,9 @@ void RezoClient::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& t
 
 void RezoClient::OnAddressChange(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                  const CefString& url) {
-    if (frame->IsMain()) window_->SetAddress(url.ToString());
+    if (frame->IsMain() && window_->ActiveBrowser() == browser) {
+        window_->SetAddress(url.ToString());
+    }
 }
 
 void RezoClient::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,

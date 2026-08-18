@@ -32,5 +32,6 @@ private:
     std::string torDir_;
     std::string dataDir_;
     HANDLE startThread_ = nullptr;
+    DWORD startThreadId_ = 0;
     HANDLE watchThread_ = nullptr;
 };

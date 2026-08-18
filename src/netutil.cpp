@@ -31,7 +31,14 @@ bool tryConnect(const char* host, unsigned short port) {
         FD_SET(s, &w);
         timeval tv{};
         tv.tv_usec = 250000;
-        ok = select(0, nullptr, &w, nullptr, &tv) == 1;
+        if (select(0, nullptr, &w, nullptr, &tv) == 1) {
+            // A refused connection also makes the socket writable — success
+            // requires SO_ERROR to be clear, or a dead proxy reports alive.
+            int err = 0;
+            int elen = sizeof(err);
+            ok = getsockopt(s, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&err), &elen) == 0 &&
+                 err == 0;
+        }
     }
     closesocket(s);
     return ok;
@@ -44,6 +51,18 @@ bool waitForPort(const char* host, unsigned short port, int timeoutMs) {
         std::this_thread::sleep_for(std::chrono::milliseconds(250));
     } while (std::chrono::steady_clock::now() < deadline);
     return false;
+}
+
+// Receive exactly n bytes (TCP replies can arrive split). SO_RCVTIMEO bounds
+// the total time; returns false on timeout/error/short read.
+bool recvAll(SOCKET s, uint8_t* buf, int n) {
+    int got = 0;
+    while (got < n) {
+        int r = recv(s, reinterpret_cast<char*>(buf + got), n - got, 0);
+        if (r <= 0) return false;
+        got += r;
+    }
+    return true;
 }
 
 bool socksReady(const char* proxyHost, unsigned short proxyPort,
@@ -69,7 +88,7 @@ bool socksReady(const char* proxyHost, unsigned short proxyPort,
         uint8_t resp[2];
         fail = send(s, reinterpret_cast<const char*>(hello), sizeof(hello), 0) !=
                    static_cast<int>(sizeof(hello)) ||
-               recv(s, reinterpret_cast<char*>(resp), 2, 0) != 2 ||
+               !recvAll(s, resp, 2) ||
                resp[0] != 0x05 || resp[1] != 0x00;
         if (!fail) {
             // CONNECT via domain name (remote DNS, like browser traffic).
@@ -85,7 +104,7 @@ bool socksReady(const char* proxyHost, unsigned short proxyPort,
                 uint8_t head[4];
                 int reqLen = 5 + static_cast<int>(len) + 2;
                 fail = send(s, reinterpret_cast<const char*>(req), reqLen, 0) != reqLen ||
-                       recv(s, reinterpret_cast<char*>(head), 4, 0) != 4 ||
+                       !recvAll(s, head, 4) ||
                        head[0] != 0x05 || head[1] != 0x00;
             }
         }
