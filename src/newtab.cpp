@@ -59,6 +59,27 @@ std::string EnsureConfig(const std::string& cfgPath) {
     return cfgPath;
 }
 
+std::string HostClass(const std::string& url) {
+    struct { const char* host; const char* cls; } map[] = {
+        {"steampowered.com", "steam"}, {"discord.com", "discord"},
+        {"roblox.com", "roblox"}, {"reddit.com", "reddit"}, {"youtube.com", "youtube"},
+    };
+    for (const auto& m : map) {
+        if (url.find(m.host) != std::string::npos) return m.cls;
+    }
+    return "";
+}
+
+std::string StatusClass(TorState s) {
+    switch (s) {
+        case TorState::Disconnected: return "disconnected";
+        case TorState::Starting:     return "starting";
+        case TorState::Connected:    return "connected";
+        case TorState::Blocked:      return "blocked";
+    }
+    return "disconnected";
+}
+
 std::string BuildTiles(const std::string& cfgPath) {
     std::ifstream f(cfgPath);
     std::string out;
@@ -70,7 +91,10 @@ std::string BuildTiles(const std::string& cfgPath) {
         std::string name = line.substr(0, tab);
         std::string url = line.substr(tab + 1);
         if (name.empty() || url.empty()) continue;
-        out += "<a href=\"" + EscapeHtml(url) + "\">" + EscapeHtml(name) + "</a>\n";
+        std::string cls = HostClass(url);
+        out += "<a href=\"" + EscapeHtml(url) + "\"";
+        if (!cls.empty()) out += " data-host=\"" + cls + "\"";
+        out += ">" + EscapeHtml(name) + "</a>\n";
     }
     return out;
 }
@@ -118,18 +142,20 @@ private:
         std::string statusText = std::string("Tor: ") + status;
         if (url.find("retry") != std::string::npos) {
             g_tor.StartAsync();
-            return "<html><body style='background:#0f0f14;color:#e8e8f0;font-family:sans-serif;text-align:center;padding-top:120px'>"
-                   "<h1>TOR STARTING</h1>"
+            return "<html><body style='margin:0;min-height:100vh;background:#0b0b12;color:#e8e8f0;font-family:sans-serif;text-align:center;padding-top:120px;background-image:radial-gradient(60% 50% at 20% 0%,rgba(251,191,36,0.12),transparent 60%)'>"
+                   "<h1 style='font-size:40px;letter-spacing:6px;color:#fbbf24;text-shadow:0 0 22px rgba(251,191,36,0.55)'>TOR STARTING</h1>"
                    "<p>Waiting for the Tor circuit...</p>"
-                   "<a href='rezo://newtab/' style='color:#7c5cff'>Back</a></body></html>";
+                   "<a href='rezo://newtab/' style='display:inline-block;margin-top:34px;padding:12px 28px;background:#7c5cff;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;box-shadow:0 0 18px rgba(124,92,255,0.5)'>Back</a></body></html>";
         }
         if (url.find("blocked") != std::string::npos) {
             std::string html = ReadFile(dir + "\\blocked.html");
             // {{STATUS}} placeholder is fine to leave if absent.
+            html = ReplaceAll(html, "{{STATUSCLASS}}", StatusClass(g_tor.State()));
             return ReplaceAll(html, "{{STATUS}}", statusText);
         }
         std::string html = ReadFile(dir + "\\newtab.html");
         html = ReplaceAll(html, "{{TILES}}", BuildTiles(EnsureConfig(dir + "\\quickaccess.txt")));
+        html = ReplaceAll(html, "{{STATUSCLASS}}", StatusClass(g_tor.State()));
         html = ReplaceAll(html, "{{STATUS}}", statusText);
         return html;
     }

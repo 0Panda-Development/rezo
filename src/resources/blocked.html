@@ -4,18 +4,60 @@
 <meta charset="utf-8">
 <title>Tor Offline</title>
 <style>
-  body { background:#0f0f14; color:#e8e8f0; font-family:'Segoe UI',sans-serif; text-align:center; padding-top:120px; }
-  h1 { color:#ff5c5c; letter-spacing:3px; }
-  a { display:inline-block; margin-top:30px; padding:12px 28px; background:#7c5cff; color:#fff;
-      border-radius:6px; text-decoration:none; }
-  p { color:#8a8a9a; margin-top:20px; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: #0b0b12;
+    color: #e8e8f0;
+    font-family: 'Segoe UI', sans-serif;
+    text-align: center;
+    padding-top: 120px;
+    background-image:
+      radial-gradient(60% 50% at 20% 0%, rgba(248, 113, 113, 0.14), transparent 60%),
+      radial-gradient(50% 40% at 80% 10%, rgba(255, 0, 128, 0.08), transparent 60%);
+  }
+  h1 {
+    margin: 0; font-size: 40px; letter-spacing: 6px; color: #ff5c5c;
+    text-shadow: 0 0 22px rgba(255, 92, 92, 0.55);
+  }
+  p { color: #8a8a9a; margin-top: 20px; }
+  .status {
+    display: inline-block; margin-top: 34px; padding: 8px 18px;
+    border-radius: 999px; font-size: 13px; font-weight: 600;
+    background: rgba(255, 255, 255, 0.03); border: 1px solid #26263a;
+  }
+  .status::before {
+    content: ""; display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; background: currentColor; margin-right: 8px;
+  }
+  .status.connected    { color: #4ade80; border-color: rgba(74, 222, 128, 0.5);
+                         animation: pulse 2.4s ease-in-out infinite; }
+  .status.starting     { color: #fbbf24; border-color: rgba(251, 191, 36, 0.5);
+                         animation: pulse 1.2s ease-in-out infinite; }
+  .status.blocked      { color: #f87171; border-color: rgba(248, 113, 113, 0.5); }
+  .status.disconnected { color: #9ca3af; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, currentColor 25%, transparent); }
+    50%      { box-shadow: 0 0 18px color-mix(in srgb, currentColor 60%, transparent); }
+  }
+  a {
+    display: inline-block; margin-top: 34px; padding: 12px 28px;
+    background: #7c5cff; color: #fff;
+    border-radius: 8px; text-decoration: none; font-weight: 600;
+    animation: btnPulse 2s ease-in-out infinite;
+    transition: transform 0.15s ease;
+  }
+  a:hover { transform: scale(1.05); }
+  @keyframes btnPulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(124, 92, 255, 0.35); }
+    50%      { box-shadow: 0 0 26px rgba(124, 92, 255, 0.75); }
+  }
 </style>
 </head>
 <body>
 <h1>TOR OFFLINE</h1>
 <p>Rezo cannot load this page: the Tor connection is down.</p>
 <p>Your IP was never exposed.</p>
-<p>Status: {{STATUS}}</p>
+<p class="status {{STATUSCLASS}}">{{STATUS}}</p>
 <a href="rezo://newtab/retry">Retry</a>
 </body>
 </html>
