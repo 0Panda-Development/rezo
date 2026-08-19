@@ -83,6 +83,11 @@ void RezoClient::OnAddressChange(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
     }
 }
 
+void RezoClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                           int httpStatusCode) {
+    if (frame->IsMain()) window_->SetAddress(frame->GetURL().ToString());
+}
+
 void RezoClient::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                              ErrorCode errorCode, const CefString& errorText,
                              const CefString& failedUrl) {
