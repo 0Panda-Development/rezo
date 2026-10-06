@@ -68,17 +68,25 @@ void RezoApp::OnContextInitialized() {
     std::filesystem::path exeDir(buf);
     exeDir = exeDir.parent_path();
     g_urlRules.Load((exeDir / "filters" / "urlrules.txt").string());
-    // Auto-update: run the installed updater silently on launch.
-    // It checks for updates in background, only shows UI if update available.
+
+    // Run updater once (first launch only) - it checks for updates silently
+    // and only shows UI if update is available. Uses a marker file to run once.
     wchar_t appdata[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr,
                                    SHGFP_TYPE_CURRENT, appdata))) {
-        std::wstring updater =
-            std::wstring(appdata) + L"\\Rezo\\RezoUpdater.exe";
-        if (GetFileAttributesW(updater.c_str()) != INVALID_FILE_ATTRIBUTES) {
-            // Run silently (-s flag) - only shows UI if update available
-            ShellExecuteW(nullptr, L"open", updater.c_str(), L"-s", nullptr,
-                          SW_HIDE);
+        std::filesystem::path markerDir(appdata);
+        markerDir /= L"Rezo";
+        std::filesystem::create_directories(markerDir);
+        std::filesystem::path marker = markerDir / L"updater_ran.marker";
+
+        if (!std::filesystem::exists(marker)) {
+            std::wstring updater = (markerDir / L"RezoUpdater.exe").wstring();
+            if (GetFileAttributesW(updater.c_str()) != INVALID_FILE_ATTRIBUTES) {
+                ShellExecuteW(nullptr, L"open", updater.c_str(), L"-s", nullptr, SW_HIDE);
+            }
+            // Create marker so we only run once
+            std::ofstream ofs(marker);
+            ofs << "1";
         }
     }
     SetWindow(new RezoWindow());
