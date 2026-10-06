@@ -6,6 +6,14 @@ using System.Security.Cryptography.X509Certificates;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
+[assembly: AssemblyTitle("Rezo Setup")]
+[assembly: AssemblyProduct("Rezo")]
+[assembly: AssemblyCompany("Pandajupiter")]
+[assembly: AssemblyDescription("Rezo privacy browser - installer")]
+[assembly: AssemblyCopyright("Copyright (c) Pandajupiter")]
+[assembly: AssemblyVersion("1.5.3.0")]
+[assembly: AssemblyFileVersion("1.5.3.0")]
+
 class RezoSetupForm : Form
 {
     TextBox log_;
@@ -13,11 +21,32 @@ class RezoSetupForm : Form
     [STAThread]
     static void Main()
     {
+        // Request admin elevation if not already elevated
+        if (!IsRunAsAdmin())
+        {
+            var startInfo = new ProcessStartInfo(Assembly.GetExecutingAssembly().Location)
+            {
+                UseShellExecute = true,
+                Verb = "runas"
+            };
+            try { Process.Start(startInfo); } catch { }
+            return;
+        }
+
         System.Net.ServicePointManager.SecurityProtocol =
             System.Net.SecurityProtocolType.Tls12;
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.Run(new RezoSetupForm());
+    }
+
+    static bool IsRunAsAdmin()
+    {
+        using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent())
+        {
+            var principal = new System.Security.Principal.WindowsPrincipal(identity);
+            return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        }
     }
 
     RezoSetupForm()
@@ -57,49 +86,37 @@ class RezoSetupForm : Form
     void Run()
     {
         string dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-        string msix = null;
         string cer = Path.Combine(dir, "Rezo-selfsign.cer");
-        string msixName = null;
-        var msixCandidates = Directory.GetFiles(dir, "Rezo-*.msix");
-        if (msixCandidates.Length > 0)
-        {
-            msix = msixCandidates[0];
-            msixName = Path.GetFileName(msix);
-        }
 
         try
         {
-            Log("> Rezo setup");
-            if (msix == null || !File.Exists(cer))
+            Log("> Rezo setup - fetching latest from server...");
+            string tmp = Path.Combine(Path.GetTempPath(), "rezo-setup");
+            Directory.CreateDirectory(tmp);
+            string server = "https://github.com/0Panda-Development/rezo/releases/latest/download/";
+            string ver = Fetch(server + "version.txt");
+            if (ver == null)
             {
-                Log("> no installer files here - downloading latest from server...");
-                string tmp = Path.Combine(Path.GetTempPath(), "rezo-setup");
-                Directory.CreateDirectory(tmp);
-                string server = "https://github.com/Pandajupiter8599/Rezo/releases/latest/download/";
-                string ver = Fetch(server + "version.txt");
-                if (ver == null)
-                {
-                    Log("[FAIL] update server unreachable (no internet?)");
-                    Finish();
-                    return;
-                }
-                msix = Path.Combine(tmp, "Rezo-" + ver + ".msix");
-                cer = Path.Combine(tmp, "Rezo-selfsign.cer");
-                try
-                {
-                    Download(server + "Rezo-" + ver + ".msix", msix);
-                    Download(server + "Rezo-selfsign.cer", cer);
-                    Log("[OK] downloaded v" + ver);
-                }
-                catch (Exception e)
-                {
-                    Log("[FAIL] download failed: " + e.Message);
-                    Finish();
-                    return;
-                }
-                msixName = Path.GetFileName(msix);
+                Log("[FAIL] update server unreachable (no internet?)");
+                Finish();
+                return;
             }
-            Log("> found " + msixName);
+            string msix = Path.Combine(tmp, "Rezo-" + ver + ".msix");
+            cer = Path.Combine(tmp, "Rezo-selfsign.cer");
+            try
+            {
+                Log("> downloading v" + ver + "...");
+                Download(server + "Rezo-" + ver + ".msix", msix);
+                Download(server + "Rezo-selfsign.cer", cer);
+                Log("[OK] downloaded v" + ver);
+            }
+            catch (Exception e)
+            {
+                Log("[FAIL] download failed: " + e.Message);
+                Finish();
+                return;
+            }
+            string msixName = Path.GetFileName(msix);
 
             Log("> trusting Rezo publisher certificate");
             try
@@ -156,6 +173,18 @@ class RezoSetupForm : Form
             }
 
             Log("[OK] Rezo installed successfully");
+            // Overwrite old updater with new one (fixes stale URL in cached updater)
+            try
+            {
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string rootDir = Path.Combine(localAppData, "Rezo");
+                string newUpdater = Path.Combine(rootDir, "RezoUpdater.exe");
+                if (File.Exists(newUpdater))
+                    File.Delete(newUpdater);
+                File.Copy(Assembly.GetExecutingAssembly().Location, newUpdater, true);
+                Log("[OK] refreshed local updater");
+            }
+            catch { }
             Log("> launching Rezo");
             try
             {

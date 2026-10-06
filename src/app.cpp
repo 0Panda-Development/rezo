@@ -68,17 +68,18 @@ void RezoApp::OnContextInitialized() {
     std::filesystem::path exeDir(buf);
     exeDir = exeDir.parent_path();
     g_urlRules.Load((exeDir / "filters" / "urlrules.txt").string());
-    // Auto-update: run the installed updater on every launch. It exits
-    // quickly when up to date (this instance keeps running); if an update is
-    // available it kills this instance, installs, and relaunches the app.
+    // Auto-update: run the installed updater silently on launch.
+    // It checks for updates in background, only shows UI if update available.
     wchar_t appdata[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr,
                                    SHGFP_TYPE_CURRENT, appdata))) {
         std::wstring updater =
             std::wstring(appdata) + L"\\Rezo\\RezoUpdater.exe";
-        if (GetFileAttributesW(updater.c_str()) != INVALID_FILE_ATTRIBUTES)
-            ShellExecuteW(nullptr, L"open", updater.c_str(), L"", nullptr,
-                          SW_SHOWNORMAL);
+        if (GetFileAttributesW(updater.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            // Run silently (-s flag) - only shows UI if update available
+            ShellExecuteW(nullptr, L"open", updater.c_str(), L"-s", nullptr,
+                          SW_HIDE);
+        }
     }
     SetWindow(new RezoWindow());
     window()->Create("rezo://newtab/");

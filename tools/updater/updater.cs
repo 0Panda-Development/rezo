@@ -23,7 +23,7 @@ class RezoUpdaterForm : Form
     const string APP_VERSION = "1.5.3";
     // Built-in update server; a rezo-update.url file next to this exe can
     // override it (e.g. self-hosted mirrors).
-    const string DEFAULT_SERVER = "https://github.com/Pandajupiter8599/Rezo/releases/latest/download/";
+    const string DEFAULT_SERVER = "https://github.com/0Panda-Development/rezo/releases/latest/download/";
 
     static readonly string ExeDir_ = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
     static readonly string LocalAppData_ = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -39,56 +39,66 @@ class RezoUpdaterForm : Form
     TextBox log_;
     ProgressBar bar_;
     PictureBox logo_;
+    bool silent_ = false;
 
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
-        // GitHub (and most modern servers) require TLS 1.2; .NET Framework
-        // defaults to older protocols on some machines.
         System.Net.ServicePointManager.SecurityProtocol =
             System.Net.SecurityProtocolType.Tls12;
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new RezoUpdaterForm());
+        Application.Run(new RezoUpdaterForm(args));
     }
 
-    RezoUpdaterForm()
+    RezoUpdaterForm(string[] args = null)
     {
-        Text = "Rezo Updater " + APP_VERSION;
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
-        ClientSize = new Size(560, 420);
-        BackColor = Color.Black;
-        StartPosition = FormStartPosition.CenterScreen;
-        try { Icon = new Icon(Assembly.GetExecutingAssembly().GetManifestResourceStream("logo.ico")); } catch { }
+        if (args != null && args.Length > 0 && (args[0] == "-s" || args[0] == "--silent"))
+            silent_ = true;
 
-        logo_ = new PictureBox { SizeMode = PictureBoxSizeMode.Zoom, Dock = DockStyle.Top, Height = 120 };
-        try { logo_.Image = Image.FromStream(Assembly.GetExecutingAssembly().GetManifestResourceStream("logo.png")); } catch { }
-        Controls.Add(logo_);
-
-        bar_ = new ProgressBar { Dock = DockStyle.Bottom, Height = 18, Style = ProgressBarStyle.Continuous };
-        Controls.Add(bar_);
-
-        log_ = new TextBox
+        if (!silent_)
         {
-            Multiline = true,
-            ReadOnly = true,
-            Dock = DockStyle.Fill,
-            BackColor = Color.Black,
-            ForeColor = Color.LimeGreen,
-            Font = new Font("Consolas", 10),
-            BorderStyle = BorderStyle.None,
-            ScrollBars = ScrollBars.Vertical,
-        };
-        Controls.Add(log_);
-        Controls.SetChildIndex(log_, 0);
-        log_.BringToFront();
+            Text = "Rezo Updater " + APP_VERSION;
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
+            ClientSize = new Size(560, 420);
+            BackColor = Color.Black;
+            StartPosition = FormStartPosition.CenterScreen;
+            try { Icon = new Icon(Assembly.GetExecutingAssembly().GetManifestResourceStream("logo.ico")); } catch { }
 
-        Shown += (s, e) => Run();
+            logo_ = new PictureBox { SizeMode = PictureBoxSizeMode.Zoom, Dock = DockStyle.Top, Height = 120 };
+            try { logo_.Image = Image.FromStream(Assembly.GetExecutingAssembly().GetManifestResourceStream("logo.png")); } catch { }
+            Controls.Add(logo_);
+
+            bar_ = new ProgressBar { Dock = DockStyle.Bottom, Height = 18, Style = ProgressBarStyle.Continuous };
+            Controls.Add(bar_);
+
+            log_ = new TextBox
+            {
+                Multiline = true,
+                ReadOnly = true,
+                Dock = DockStyle.Fill,
+                BackColor = Color.Black,
+                ForeColor = Color.LimeGreen,
+                Font = new Font("Consolas", 10),
+                BorderStyle = BorderStyle.None,
+                ScrollBars = ScrollBars.Vertical,
+            };
+            Controls.Add(log_);
+            Controls.SetChildIndex(log_, 0);
+            log_.BringToFront();
+
+            Shown += (s, e) => Run();
+        }
+        else
+        {
+            Shown += (s, e) => { RunSilent(); Close(); };
+        }
     }
 
     void Log(string line)
     {
+        if (silent_) return;
         log_.AppendText(line + Environment.NewLine);
         log_.SelectionStart = log_.TextLength;
         log_.ScrollToCaret();
@@ -105,9 +115,6 @@ class RezoUpdaterForm : Form
             string url = ReadUrl();
             Log("[OK] server: " + url);
 
-            // Packaged (MSIX) installs can't be updated in place - WindowsApps
-            // is read-only. If a Rezo package is installed, update the package
-            // itself via Add-AppxPackage -Update instead of the exe flow.
             bool msix;
             string pkgVer, pkgFamily;
             msix = GetMsixPackage(out pkgVer, out pkgFamily);
@@ -172,8 +179,6 @@ class RezoUpdaterForm : Form
             else
             {
                 Log("[OK] UP TO DATE v" + installed);
-                // Spawned from the browser at startup? Then Rezo is already
-                // running - do not open a second instance.
                 if (!AppAlreadyRunning())
                     Launch();
                 Finish(true);
@@ -241,16 +246,11 @@ class RezoUpdaterForm : Form
                 Directory.Delete(old, true);
             try
             {
-                // Prefer the updater shipped inside the package (self-update).
-                // AppDir_ now holds the freshly extracted payload (tmp was
-                // moved away above).
                 string newUpdater = Path.Combine(AppDir_, "RezoUpdater.exe");
                 if (File.Exists(newUpdater))
                     File.Copy(newUpdater, SelfPath_, true);
                 else
                     File.Copy(Assembly.GetExecutingAssembly().Location, SelfPath_, true);
-                // Ship the update-server URL next to the installed updater so
-                // every copy checks the server on launch.
                 string urlFile = Path.Combine(AppDir_, "rezo-update.url");
                 if (File.Exists(urlFile))
                     File.Copy(urlFile, Path.Combine(RootDir_, "rezo-update.url"), true);
@@ -282,13 +282,68 @@ class RezoUpdaterForm : Form
         }
     }
 
-    void Finish(bool ok)
+    void RunSilent()
     {
-        bar_.Visible = false;
-        Log(ok ? "[OK] REZO TERMINAL SESSION COMPLETE" : "[FAIL] operation aborted");
-        var t = new System.Windows.Forms.Timer { Interval = 2500 };
-        t.Tick += (s, e) => { t.Stop(); Application.Exit(); };
-        t.Start();
+        try
+        {
+            string url = ReadUrl();
+
+            bool msix;
+            string pkgVer, pkgFamily;
+            msix = GetMsixPackage(out pkgVer, out pkgFamily);
+            if (msix)
+            {
+                RunMsixSilent(url, pkgVer, pkgFamily);
+                return;
+            }
+
+            string installed = File.Exists(VersionFile_) ? ReadVer(VersionFile_) : null;
+            string server = null;
+            try { server = Fetch(url + "version.txt"); } catch { }
+            string zipVer = null;
+            if (File.Exists(ZipPath_))
+                zipVer = ReadZipVer(ZipPath_);
+
+            string target = null;
+            if (zipVer != null && server != null)
+                target = CompareVersions(zipVer, server) >= 0 ? zipVer : server;
+            else if (zipVer != null)
+                target = zipVer;
+            else if (server != null)
+                target = server;
+
+            bool firstInstall = installed == null;
+            if (installed == null)
+            {
+                if (target == null) return;
+            }
+            else if (target != null && CompareVersions(target, installed) > 0)
+            {
+                silent_ = false;
+                Show();
+                Run();
+                return;
+            }
+            else
+            {
+                if (!AppAlreadyRunning()) Launch();
+            }
+        }
+        catch { }
+    }
+
+    void RunMsixSilent(string url, string pkgVer, string pkgFamily)
+    {
+        string server = null;
+        try { server = Fetch(url + "version.txt"); } catch { }
+        if (server == null || CompareVersions(server, pkgVer) <= 0)
+        {
+            if (!AppAlreadyRunning()) LaunchMsix(pkgFamily);
+            return;
+        }
+        silent_ = false;
+        Show();
+        RunMsix(url, pkgVer, pkgFamily);
     }
 
     void RunMsix(string url, string pkgVer, string pkgFamily)
@@ -345,8 +400,6 @@ class RezoUpdaterForm : Form
         Log("[OK] installed v" + server);
         try
         {
-            // Keep the auto-updater itself current (it lives outside the
-            // package, in %LOCALAPPDATA%\Rezo, and is spawned on every launch).
             Download(url + "RezoUpdater.exe", SelfPath_);
             Log("[OK] updater refreshed");
         }
@@ -434,8 +487,6 @@ class RezoUpdaterForm : Form
 
     bool AppAlreadyRunning()
     {
-        // Any Rezo copy, wherever it lives: launching another one would just
-        // exit against the app's single-instance guard.
         return Process.GetProcessesByName("rezo").Length > 0;
     }
 
@@ -481,8 +532,11 @@ class RezoUpdaterForm : Form
                 using (var dst = File.Create(path))
                     src.CopyTo(dst);
                 done++;
-                bar_.Value = done * 100 / entries.Length;
-                Application.DoEvents();
+                if (!silent_)
+                {
+                    bar_.Value = done * 100 / entries.Length;
+                    Application.DoEvents();
+                }
             }
         }
     }
@@ -611,7 +665,18 @@ class RezoUpdaterForm : Form
 
     void Fail(string msg)
     {
-        log_.AppendText("[FAIL] " + msg + Environment.NewLine);
+        if (!silent_)
+            log_.AppendText("[FAIL] " + msg + Environment.NewLine);
         try { File.AppendAllText(Path.Combine(RootDir_, "updater.log"), "[FAIL] " + msg + Environment.NewLine); } catch { }
+    }
+
+    void Finish(bool ok)
+    {
+        if (silent_) { Application.Exit(); return; }
+        bar_.Visible = false;
+        Log(ok ? "[OK] REZO TERMINAL SESSION COMPLETE" : "[FAIL] operation aborted");
+        var t = new System.Windows.Forms.Timer { Interval = 2500 };
+        t.Tick += (s, e) => { t.Stop(); Application.Exit(); };
+        t.Start();
     }
 }
