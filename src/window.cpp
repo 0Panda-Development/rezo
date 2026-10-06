@@ -92,7 +92,7 @@ void Chrome::OnWindowCreated(CefRefPtr<CefWindow> window) {
     RezoWindow* w = owner_;
 
     w->window_ = window;
-    window->SetTitle("Rezo");
+    window->SetTitle("Rezo v1.5.3");
 
     // CEF views windows default to the CEF/chrome icon; swap in Rezo's icon.
     HWND hwnd = static_cast<HWND>(window->GetWindowHandle());

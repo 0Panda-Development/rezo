@@ -9,6 +9,7 @@ inline const std::vector<std::string> kTrustedDomains = {
     "googleapis.com", "gstatic.com",
     "steampowered.com", "steamcommunity.com", "steamstatic.com", "steamcontent.com",
     "discord.com", "discordapp.com", "twitch.tv", "reddit.com", "roblox.com", "github.com",
+    "cineb.cx",
 };
 
 inline bool IsTrustedHost(const std::string& host) {
