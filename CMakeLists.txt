@@ -18,11 +18,11 @@ SET_CEF_TARGET_OUT_DIR()
 ADD_LOGICAL_TARGET(libcef_lib "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
 
 add_executable(rezo src/main.cpp src/app.cpp src/client.cpp src/window.cpp src/newtab.cpp
-               src/tor_manager.cpp src/netutil.cpp)
+               src/tor_manager.cpp src/netutil.cpp src/rezo.rc)
 target_include_directories(rezo PRIVATE src)
 SET_EXECUTABLE_TARGET_PROPERTIES(rezo)
 add_dependencies(rezo libcef_dll_wrapper)
-target_link_libraries(rezo libcef_lib libcef_dll_wrapper ${CEF_STANDARD_LIBS})
+target_link_libraries(rezo libcef_lib libcef_dll_wrapper ${CEF_STANDARD_LIBS} dwmapi)
 COPY_FILES("rezo" "${CEF_BINARY_FILES}" "${CEF_BINARY_DIR}" "${CEF_TARGET_OUT_DIR}")
 COPY_FILES("rezo" "${CEF_RESOURCE_FILES}" "${CEF_RESOURCE_DIR}" "${CEF_TARGET_OUT_DIR}")
 

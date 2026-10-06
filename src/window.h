@@ -34,6 +34,10 @@ public:
     // CefTextfieldDelegate
     bool OnKeyEvent(CefRefPtr<CefTextfield> textfield, const CefKeyEvent& event) override;
 
+    // CefViewDelegate (focus glow on the address field)
+    void OnFocus(CefRefPtr<CefView> view) override;
+    void OnBlur(CefRefPtr<CefView> view) override;
+
     IMPLEMENT_REFCOUNTING(Chrome);
 
 private:
@@ -93,6 +97,11 @@ public:
     void SetTabTitle(CefRefPtr<CefBrowser> browser, const CefString& title);
     void SetAddress(const std::string& url);
     void UpdateTorStatus();
+    void SetDownloadStatus(const std::string& text);
+    void FocusAddress();
+    void ApplyZoom(double delta);
+    void ApplyZoomReset();
+    void ToggleFullscreen();
     void RebuildTabButtons();
     bool IsClosing() const { return closing_; }
     void DestroyWindow();
@@ -108,6 +117,8 @@ private:
 
     CefRefPtr<CefWindow> window_;
     CefRefPtr<CefPanel> root_;
+    CefRefPtr<CefPanel> middle_;
+    CefRefPtr<CefPanel> sidebar_;
     CefRefPtr<CefPanel> tabBar_;
     CefRefPtr<CefLabelButton> plus_;
     CefRefPtr<CefTextfield> address_;
@@ -116,5 +127,7 @@ private:
     std::vector<Tab> tabs_;
     int selected_ = -1;
     std::string startUrl_;
+    std::string downloadStatus_;
+    double zoom_ = 0.0;
     bool closing_ = false;
 };

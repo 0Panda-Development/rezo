@@ -6,3 +6,7 @@ tor/
 CMakeFiles/
 cmake_install.cmake
 CMakeCache.txt
+
+release/
+tools/updater/RezoUpdater.exe
+tools/updater/rezo.zip

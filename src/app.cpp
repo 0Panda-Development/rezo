@@ -1,7 +1,11 @@
 #include "app.h"
 
+#include <shellapi.h>
+#include <shlobj.h>
+
 #include "include/cef_version_info.h"
 #include "newtab.h"
+#include "trusted.h"
 #include "window.h"
 
 RezoApp::RezoApp() = default;
@@ -16,7 +20,7 @@ std::string RezoApp::UserAgent() const {
 
 // Privacy hardening switch set (task 5 verified):
 //   proxy-server                     socks5://127.0.0.1:9050  — Tor SOCKS5 proxy (tor.exe must run)
-//   proxy-bypass-list                <-loopback>              — only loopback bypasses the proxy
+//   proxy-bypass-list                trusted domains + loopback — trusted sites bypass the proxy (direct)
 //   host-resolver-rules              MAP * ~NOTFOUND + EXCLUDE localhost/127.0.0.1 — all DNS via proxy, no local leaks
 //   force-webrtc-ip-handling-policy  disable_non_proxied_udp  — WebRTC over SOCKS5 effectively off
 //   user-agent                       generic Windows Chrome   — no build/arch specifics beyond Win64
@@ -25,10 +29,15 @@ std::string RezoApp::UserAgent() const {
 //   disable-features=Translate,MediaRouter,OptimizationHints  — telemetry/network features off
 void RezoApp::OnBeforeCommandLineProcessing(const CefString& process_type,
                                             CefRefPtr<CefCommandLine> command_line) {
+    std::string bypass = "<-loopback>";
+    std::string resolve = "MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1";
+    for (const auto& d : kTrustedDomains) {
+        bypass += "," + d + ",*." + d;
+        resolve += ", EXCLUDE " + d + ", EXCLUDE *." + d;
+    }
     command_line->AppendSwitchWithValue("proxy-server", "socks5://127.0.0.1:9050");
-    command_line->AppendSwitchWithValue("proxy-bypass-list", "<-loopback>");
-    command_line->AppendSwitchWithValue(
-        "host-resolver-rules", "MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1");
+    command_line->AppendSwitchWithValue("proxy-bypass-list", bypass);
+    command_line->AppendSwitchWithValue("host-resolver-rules", resolve);
     command_line->AppendSwitchWithValue("force-webrtc-ip-handling-policy",
                                         "disable_non_proxied_udp");
     command_line->AppendSwitchWithValue("user-agent", UserAgent());
@@ -38,6 +47,9 @@ void RezoApp::OnBeforeCommandLineProcessing(const CefString& process_type,
     command_line->AppendSwitch("disable-domain-reliability");
     command_line->AppendSwitch("disable-background-networking");
     command_line->AppendSwitch("disable-features=Translate,MediaRouter,OptimizationHints");
+    // GPU child crashes on this machine (VM without working GPU path);
+    // software rendering instead.
+    command_line->AppendSwitch("disable-gpu");
 }
 
 void RezoApp::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) {
@@ -46,6 +58,18 @@ void RezoApp::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) {
 
 void RezoApp::OnContextInitialized() {
     CefRegisterSchemeHandlerFactory("rezo", "newtab", new NewTabFactory());
+    // Auto-update: run the installed updater on every launch. It exits
+    // quickly when up to date (this instance keeps running); if an update is
+    // available it kills this instance, installs, and relaunches the app.
+    wchar_t appdata[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr,
+                                   SHGFP_TYPE_CURRENT, appdata))) {
+        std::wstring updater =
+            std::wstring(appdata) + L"\\Rezo\\RezoUpdater.exe";
+        if (GetFileAttributesW(updater.c_str()) != INVALID_FILE_ATTRIBUTES)
+            ShellExecuteW(nullptr, L"open", updater.c_str(), L"", nullptr,
+                          SW_SHOWNORMAL);
+    }
     SetWindow(new RezoWindow());
     window()->Create("rezo://newtab/");
 }

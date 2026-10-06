@@ -1,6 +1,8 @@
 #pragma once
 
 #include "include/cef_client.h"
+#include "include/cef_download_handler.h"
+#include "include/cef_keyboard_handler.h"
 #include "include/cef_resource_request_handler.h"
 
 class RezoWindow;
@@ -10,7 +12,9 @@ class RezoClient : public CefClient,
                    public CefLifeSpanHandler,
                    public CefLoadHandler,
                    public CefResourceRequestHandler,
-                   public CefDisplayHandler {
+                   public CefDisplayHandler,
+                   public CefDownloadHandler,
+                   public CefKeyboardHandler {
 public:
     explicit RezoClient(RezoWindow* window) : window_(window) {}
 
@@ -18,6 +22,8 @@ public:
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
     CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
     CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
+    CefRefPtr<CefDownloadHandler> GetDownloadHandler() override { return this; }
+    CefRefPtr<CefKeyboardHandler> GetKeyboardHandler() override { return this; }
 
     // CefRequestHandler
     bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
@@ -56,6 +62,21 @@ public:
                      const CefString& failedUrl) override;
     void OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                    int httpStatusCode) override;
+
+    // CefDownloadHandler
+    bool OnBeforeDownload(CefRefPtr<CefBrowser> browser,
+                          CefRefPtr<CefDownloadItem> download_item,
+                          const CefString& suggested_name,
+                          CefRefPtr<CefBeforeDownloadCallback> callback) override;
+    void OnDownloadUpdated(CefRefPtr<CefBrowser> browser,
+                           CefRefPtr<CefDownloadItem> download_item,
+                           CefRefPtr<CefDownloadItemCallback> callback) override;
+
+    // CefKeyboardHandler
+    bool OnPreKeyEvent(CefRefPtr<CefBrowser> browser,
+                       const CefKeyEvent& event,
+                       CefEventHandle os_event,
+                       bool* is_keyboard_shortcut) override;
 
     IMPLEMENT_REFCOUNTING(RezoClient);
 
