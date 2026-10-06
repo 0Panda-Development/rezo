@@ -5,15 +5,26 @@
 #include <filesystem>
 
 #include "include/cef_version_info.h"
-#include "blocklist.h"
+#include "include/cef_cookie.h"
 #include "newtab.h"
 #include "trusted.h"
 #include "window.h"
 
-extern UrlRules g_urlRules;
+void ClearAllCookies() {
+    CefRefPtr<CefCookieManager> manager = CefCookieManager::GetGlobalManager(nullptr);
+    if (manager) {
+        manager->DeleteCookies("", "", nullptr);
+        manager->FlushStore(nullptr);
+    }
+}
 
 RezoApp::RezoApp() = default;
 RezoApp::~RezoApp() = default;
+
+void RezoApp::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
+    // Clear all cookies on browser close
+    ClearAllCookies();
+}
 
 std::string RezoApp::UserAgent() const {
     // Generic Windows UA; Chrome major version matches the bundled CEF build.
@@ -62,12 +73,6 @@ void RezoApp::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) {
 
 void RezoApp::OnContextInitialized() {
     CefRegisterSchemeHandlerFactory("rezo", "newtab", new NewTabFactory());
-    // Load URL rules for ad/tracker blocking
-    wchar_t buf[MAX_PATH];
-    GetModuleFileNameW(nullptr, buf, MAX_PATH);
-    std::filesystem::path exeDir(buf);
-    exeDir = exeDir.parent_path();
-    g_urlRules.Load((exeDir / "filters" / "urlrules.txt").string());
 
     // Run updater once (first launch only) - it checks for updates silently
     // and only shows UI if update is available. Uses a marker file to run once.

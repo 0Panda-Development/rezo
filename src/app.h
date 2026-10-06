@@ -15,6 +15,7 @@ public:
                                        CefRefPtr<CefCommandLine> command_line) override;
     void OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) override;
     void OnContextInitialized() override;
+    void OnBeforeClose(CefRefPtr<CefBrowser> browser) override;
 
     RezoWindow* window() { return window_; }
     void SetWindow(RezoWindow* w) { window_ = w; }

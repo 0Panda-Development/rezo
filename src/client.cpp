@@ -35,6 +35,70 @@ void ShowBlockedPage(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame) {
     if (frame->IsMain()) frame->LoadURL("rezo://newtab/blocked");
 }
 
+// Only block known tracking/analytics domains, not general ads
+static const char* kTrackingOnlyDomains[] = {
+    "google-analytics.com",
+    "googletagmanager.com",
+    "facebook.net/tr",
+    "connect.facebook.net",
+    "doubleclick.net",
+    "adservice.google.com",
+    "pagead2.googlesyndication.com",
+    "ads.pubmatic.com",
+    "casalemedia.com",
+    "rubiconproject.com",
+    "openx.net",
+    "criteo.com",
+    "scorecardresearch.com",
+    "quantserve.com",
+    "moatads.com",
+    "adnxs.com",
+    nullptr
+};
+
+bool IsTrackingOnly(const std::string& url) {
+    for (int i = 0; kTrackingOnlyDomains[i]; ++i) {
+        if (url.find(kTrackingOnlyDomains[i]) != std::string::npos) return true;
+    }
+    return false;
+}
+
+// Cookie consent auto-decline script
+static const char* kCookieDeclineScript = R"(
+(function() {
+    var selectors = [
+        'button[id*="reject"]', 'button[id*="decline"]', 'button[id*="deny"]',
+        'button[class*="reject"]', 'button[class*="decline"]', 'button[class*="deny"]',
+        'button[aria-label*="reject" i]', 'button[aria-label*="decline" i]',
+        '#onetrust-reject-all-handler', '.onetrust-close-btn-handler',
+        '#truste-consent-button', '.cc-btn.cc-dismiss',
+        'button[mode="primary"][data-action="reject"]',
+        'button:contains("Reject")', 'button:contains("Decline")', 'button:contains("Deny")',
+        'button:contains("Ablehnen")', 'button:contains("Abbrechen")', 'button:contains("Nur notwendige")'
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+        try {
+            var els = document.querySelectorAll(selectors[i]);
+            for (var j = 0; j < els.length; j++) {
+                if (els[j].offsetParent !== null) { els[j].click(); return; }
+            }
+        } catch(e) {}
+    }
+    // Try text content match for buttons without selectors
+    var buttons = document.querySelectorAll('button, a[role="button"], input[type="button"]');
+    var rejectTexts = ['reject all', 'decline all', 'deny all', 'only necessary', 'essential only',
+                       'ablehnen', 'ablehnen alle', 'nur notwendig', 'nur essentiell', 'ablehnen & schlieÃŸen'];
+    for (var i = 0; i < buttons.length; i++) {
+        var txt = (buttons[i].innerText || buttons[i].textContent || '').toLowerCase().trim();
+        for (var j = 0; j < rejectTexts.length; j++) {
+            if (txt.indexOf(rejectTexts[j]) !== -1 && buttons[i].offsetParent !== null) {
+                buttons[i].click(); return;
+            }
+        }
+    }
+})();
+)";
+
 }  // namespace
 
 static UrlRules g_urlRules;
@@ -46,7 +110,8 @@ bool RezoClient::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFram
     if (IsLocalUrl(request->GetURL())) return false;
     std::string url = request->GetURL().ToString();
     if (IsTrustedUrl(url)) return false;
-    if (g_urlRules.Matches(url)) {
+    // Only block tracking domains, allow everything else
+    if (IsTrackingOnly(url)) {
         ShowBlockedPage(browser, frame);
         return true;
     }
@@ -67,7 +132,8 @@ CefResourceRequestHandler::ReturnValue RezoClient::OnBeforeResourceLoad(
     if (IsLocalUrl(url)) return RV_CONTINUE;
     std::string urlStr = url.ToString();
     if (IsTrustedUrl(urlStr)) return RV_CONTINUE;
-    if (g_urlRules.Matches(urlStr)) {
+    // Only block tracking requests
+    if (IsTrackingOnly(urlStr)) {
         callback->Cancel();
         return RV_CANCEL;
     }
@@ -109,6 +175,10 @@ void RezoClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> fr
                            int httpStatusCode) {
     if (frame->IsMain()) {
         window_->SetAddress(frame->GetURL().ToString());
+        // Auto-decline cookie consent banners
+        if (!IsLocalUrl(frame->GetURL())) {
+            frame->ExecuteJavaScript(kCookieDeclineScript, frame->GetURL(), 0);
+        }
     }
 }
 
@@ -119,7 +189,7 @@ void RezoClient::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (errorCode != ERR_ABORTED && !IsLocalUrl(failedUrl) && frame->IsMain() &&
         frame->IsValid()) {
         std::string url = failedUrl.ToString();
-        if (g_urlRules.Matches(url) && !IsTrustedUrl(url)) {
+        if (IsTrackingOnly(url) && !IsTrustedUrl(url)) {
             ShowBlockedPage(browser, frame);
         }
     }
