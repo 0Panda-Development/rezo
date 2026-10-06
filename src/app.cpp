@@ -2,11 +2,15 @@
 
 #include <shellapi.h>
 #include <shlobj.h>
+#include <filesystem>
 
 #include "include/cef_version_info.h"
+#include "blocklist.h"
 #include "newtab.h"
 #include "trusted.h"
 #include "window.h"
+
+extern UrlRules g_urlRules;
 
 RezoApp::RezoApp() = default;
 RezoApp::~RezoApp() = default;
@@ -58,6 +62,12 @@ void RezoApp::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) {
 
 void RezoApp::OnContextInitialized() {
     CefRegisterSchemeHandlerFactory("rezo", "newtab", new NewTabFactory());
+    // Load URL rules for ad/tracker blocking
+    wchar_t buf[MAX_PATH];
+    GetModuleFileNameW(nullptr, buf, MAX_PATH);
+    std::filesystem::path exeDir(buf);
+    exeDir = exeDir.parent_path();
+    g_urlRules.Load((exeDir / "filters" / "urlrules.txt").string());
     // Auto-update: run the installed updater on every launch. It exits
     // quickly when up to date (this instance keeps running); if an update is
     // available it kills this instance, installs, and relaunches the app.

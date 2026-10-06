@@ -8,6 +8,7 @@
 
 #include "app.h"
 #include "include/cef_parser.h"
+#include "blocklist.h"
 #include "tor_manager.h"
 #include "tor_state.h"
 #include "trusted.h"
@@ -36,14 +37,18 @@ void ShowBlockedPage(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame) {
 
 }  // namespace
 
+static UrlRules g_urlRules;
+
 bool RezoClient::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                 CefRefPtr<CefRequest> request, bool user_gesture,
                                 bool is_redirect) {
     if (!frame->IsMain()) return false;
     if (IsLocalUrl(request->GetURL())) return false;
-    if (shouldBlockRequest(g_tor.State()) && !IsTrustedUrl(request->GetURL().ToString())) {
+    std::string url = request->GetURL().ToString();
+    if (IsTrustedUrl(url)) return false;
+    if (g_urlRules.Matches(url)) {
         ShowBlockedPage(browser, frame);
-        return true;  // cancel navigation
+        return true;
     }
     return false;
 }
@@ -60,11 +65,10 @@ CefResourceRequestHandler::ReturnValue RezoClient::OnBeforeResourceLoad(
     CefRefPtr<CefRequest> request, CefRefPtr<CefCallback> callback) {
     CefString url = request->GetURL();
     if (IsLocalUrl(url)) return RV_CONTINUE;
-    bool trusted = IsTrustedUrl(url.ToString());
-    if (!trusted) request->SetFlags(request->GetFlags() | UR_FLAG_SKIP_CACHE);
-    if (shouldBlockRequest(g_tor.State()) && !trusted) {
+    std::string urlStr = url.ToString();
+    if (IsTrustedUrl(urlStr)) return RV_CONTINUE;
+    if (g_urlRules.Matches(urlStr)) {
         callback->Cancel();
-        ShowBlockedPage(browser, frame);
         return RV_CANCEL;
     }
     return RV_CONTINUE;
@@ -111,11 +115,13 @@ void RezoClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> fr
 void RezoClient::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                              ErrorCode errorCode, const CefString& errorText,
                              const CefString& failedUrl) {
-    // Only Tor being down (kill switch active) redirects to the blocked page;
-    // cert/DNS errors are normal browsing errors and keep the native page.
+    // Only show blocked page for actual blocked requests (not cert/DNS errors)
     if (errorCode != ERR_ABORTED && !IsLocalUrl(failedUrl) && frame->IsMain() &&
-        frame->IsValid() && shouldBlockRequest(g_tor.State())) {
-        ShowBlockedPage(browser, frame);
+        frame->IsValid()) {
+        std::string url = failedUrl.ToString();
+        if (g_urlRules.Matches(url) && !IsTrustedUrl(url)) {
+            ShowBlockedPage(browser, frame);
+        }
     }
 }
 
