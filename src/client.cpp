@@ -9,6 +9,7 @@
 #include "app.h"
 #include "include/cef_parser.h"
 #include "blocklist.h"
+#include "discord_rpc.h"
 #include "tor_manager.h"
 #include "tor_state.h"
 #include "trusted.h"
@@ -168,6 +169,7 @@ void RezoClient::OnAddressChange(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
                                  const CefString& url) {
     if (frame->IsMain() && window_->ActiveBrowser() == browser) {
         window_->SetAddress(url.ToString());
+        UpdateDiscordPresence(url.ToString());
     }
 }
 
@@ -179,6 +181,7 @@ void RezoClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> fr
         if (!IsLocalUrl(frame->GetURL())) {
             frame->ExecuteJavaScript(kCookieDeclineScript, frame->GetURL(), 0);
         }
+        UpdateDiscordPresence(frame->GetURL().ToString());
     }
 }
 
@@ -270,3 +273,75 @@ bool RezoClient::OnPreKeyEvent(CefRefPtr<CefBrowser> browser, const CefKeyEvent&
     }
     return false;
 }
+
+namespace {
+
+void UpdateDiscordPresence(const std::string& url) {
+    auto& rpc = DiscordRPC::Instance();
+    if (!rpc.IsInitialized()) return;
+
+    if (url.rfind("rezo://", 0) == 0) {
+        rpc.UpdatePresence("Browsing Rezo", "New Tab / Internal Page", 
+                          "rezo_logo", "Rezo Privacy Browser");
+        return;
+    }
+
+    // Extract domain from URL
+    std::string host;
+    size_t scheme = url.find("://");
+    size_t start = (scheme == std::string::npos) ? 0 : scheme + 3;
+    size_t end = url.find_first_of("/?#", start);
+    if (end == std::string::npos) end = url.length();
+    host = url.substr(start, end - start);
+
+    // Remove port if present
+    size_t colon = host.find(':');
+    if (colon != std::string::npos) host = host.substr(0, colon);
+
+    // Remove www. prefix
+    if (host.rfind("www.", 0) == 0) host = host.substr(4);
+
+    if (host.empty()) {
+        rpc.UpdatePresence("Browsing", "Unknown site", 
+                          "rezo_logo", "Rezo Privacy Browser");
+        return;
+    }
+
+    // Check for known sites with custom images
+    const char* largeImage = "rezo_logo";
+    const char* largeText = "Rezo Privacy Browser";
+    
+    if (host.find("youtube.com") != std::string::npos || 
+        host.find("youtu.be") != std::string::npos) {
+        largeImage = "youtube";
+        largeText = "YouTube";
+    } else if (host.find("github.com") != std::string::npos) {
+        largeImage = "github";
+        largeText = "GitHub";
+    } else if (host.find("twitter.com") != std::string::npos || 
+               host.find("x.com") != std::string::npos) {
+        largeImage = "twitter";
+        largeText = "X / Twitter";
+    } else if (host.find("discord.com") != std::string::npos || 
+               host.find("discordapp.com") != std::string::npos) {
+        largeImage = "discord";
+        largeText = "Discord";
+    } else if (host.find("reddit.com") != std::string::npos) {
+        largeImage = "reddit";
+        largeText = "Reddit";
+    } else if (host.find("twitch.tv") != std::string::npos) {
+        largeImage = "twitch";
+        largeText = "Twitch";
+    } else if (host.find("steam") != std::string::npos) {
+        largeImage = "steam";
+        largeText = "Steam";
+    } else if (host.find("netflix.com") != std::string::npos) {
+        largeImage = "netflix";
+        largeText = "Netflix";
+    }
+
+    rpc.UpdatePresence(("Browsing " + host).c_str(), url.c_str(),
+                      largeImage, largeText);
+}
+
+} // namespace

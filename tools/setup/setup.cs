@@ -353,6 +353,10 @@ class RezoSetupForm : Form
                 return;
             }
 
+            // Uninstall existing version first
+            SetProgress(15, "Checking for existing installation...", "Removing old version if present...", "");
+            await Task.Run(() => UninstallExistingRezo());
+
             SetProgress(20, "Downloading installer...", "Version " + ver, "");
             string msixName = "Rezo-" + ver + ".msix";
             string msixPath = Path.Combine(Path.GetTempPath(), "rezo-setup", msixName);
@@ -502,6 +506,21 @@ class RezoSetupForm : Form
         {
             throw new Exception("Install failed: " + err);
         }
+    }
+
+    void UninstallExistingRezo()
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("powershell.exe",
+                "-NoProfile -ExecutionPolicy Bypass -Command \"$p=Get-AppxPackage Pandajupiter.Rezo; if($p){Remove-AppxPackage -Package $p.PackageFullName; Write-Host 'Removed existing Rezo'}\"")
+            { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            using (var p = Process.Start(psi))
+            {
+                p.WaitForExit();
+            }
+        }
+        catch { }
     }
 
     void LaunchRezo()

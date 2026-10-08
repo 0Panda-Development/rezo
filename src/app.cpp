@@ -6,6 +6,9 @@
 
 #include "include/cef_version_info.h"
 #include "include/cef_cookie.h"
+#include "include/base/cef_callback.h"
+#include "include/base/time/time.h"
+#include "discord_rpc.h"
 #include "newtab.h"
 #include "trusted.h"
 #include "window.h"
@@ -19,7 +22,10 @@ void ClearAllCookies() {
 }
 
 RezoApp::RezoApp() = default;
-RezoApp::~RezoApp() = default;
+
+RezoApp::~RezoApp() {
+    DiscordRPC::Instance().Shutdown();
+}
 
 void RezoApp::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     // Clear all cookies on browser close
@@ -73,6 +79,15 @@ void RezoApp::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) {
 
 void RezoApp::OnContextInitialized() {
     CefRegisterSchemeHandlerFactory("rezo", "newtab", new NewTabFactory());
+
+    // Initialize Discord Rich Presence
+    DiscordRPC::Instance().Initialize("123456789012345678"); // Replace with actual Discord Application ID
+
+    // Run Discord callbacks periodically
+    auto callback = base::BindRepeating([]() {
+        DiscordRPC::Instance().RunCallbacks();
+    });
+    CefPostDelayedTask(TID_UI, callback, base::TimeDelta::FromMilliseconds(1000));
 
     // Run updater once (first launch only) - it checks for updates silently
     // and only shows UI if update is available. Uses a marker file to run once.
